@@ -53,7 +53,7 @@ const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Space
  * this same file with `npm run dev` in the frontend project (see backend/README.md) alongside
  * the real backend for it to actually work — the code is identical either way.
  */
-const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || 'http://localhost:4000/api';
+const API_BASE = (typeof window !== 'undefined' && window.__ROPLANT_API_BASE__) || 'http://localhost:4000/api';
 
 function getToken() { return typeof localStorage !== 'undefined' ? localStorage.getItem('roplant_token') : null; }
 function getRefreshToken() { return typeof localStorage !== 'undefined' ? localStorage.getItem('roplant_refresh') : null; }
@@ -95,27 +95,6 @@ async function apiRequest(path, { method = 'GET', body, auth = true, retry = tru
   return data;
 }
 
-function saleFromApi(row) {
-  return {
-    id: row.id, invoiceNo: row.invoice_no, date: (row.created_at || '').slice(0, 10),
-    customerId: row.customer_id, customerName: row.customer_name,
-    items: (row.items || []).map(i => ({ productId: i.productId, sku: i.sku, name: i.name, qty: i.qty, price: Number(i.unitPrice), cost: Number(i.unitCost) })),
-    subtotal: Number(row.subtotal), discount: Number(row.discount), tax: Number(row.tax), total: Number(row.total),
-    paymentMethod: row.payment_method, status: row.status, servedBy: row.served_by, createdAt: row.created_at,
-  };
-}
-
-function productFromApi(row) {
-  return {
-    id: row.id, sku: row.sku, partNumber: row.part_number || '', barcode: row.barcode || '',
-    name: row.name, category: row.category, brand: row.brand || '', compatibility: row.compatibility || '',
-    costPrice: Number(row.cost_price), sellPrice: Number(row.sell_price), stockQty: row.stock_qty,
-    reorderLevel: row.reorder_level, maxStock: row.max_stock, primarySupplierId: row.primary_supplier_id,
-    rack: row.rack || '', shelfBin: row.shelf_bin || '', image: row.image || '', active: row.active,
-    updatedAt: row.updated_at, createdAt: row.created_at,
-  };
-}
-
 function settingsFromApi(row) {
   return {
     name: row.company_name, tagline: row.tagline || '', shopLocation: row.shop_location || '',
@@ -145,9 +124,6 @@ const api = {
   createProduct: (product) => apiRequest('/products', { method: 'POST', body: product }),
   updateProduct: (id, product) => apiRequest(`/products/${id}`, { method: 'PUT', body: product }),
   adjustStock: (id, body) => apiRequest(`/products/${id}/adjust`, { method: 'POST', body }),
-
-  listSales: (params = {}) => apiRequest(`/sales?${new URLSearchParams(params)}`),
-  createSale: (sale) => apiRequest('/sales', { method: 'POST', body: sale }),
 
   listCategories: () => apiRequest('/categories'),
 
@@ -215,11 +191,11 @@ const initialSuppliers = [
 ];
 
 const initialUsers = [
-  { id: 1, name: 'Ronald Mukasa', email: 'ronald@roplantservices.com', password: '••••••••', role: 'Admin', isOwner: true, status: 'Active', lastLogin: '2026-09-05 08:12' },
-  { id: 2, name: 'Grace Nabirye', email: 'grace@roplantservices.com', password: '••••••••', role: 'Manager', isOwner: false, status: 'Active', lastLogin: '2026-09-05 07:40' },
-  { id: 3, name: 'David Mugisha', email: 'david@roplantservices.com', password: '••••••••', role: 'Sales', isOwner: false, status: 'Active', lastLogin: '2026-09-04 17:02' },
-  { id: 4, name: 'Patience Auma', email: 'patience@roplantservices.com', password: '••••••••', role: 'Inventory', isOwner: false, status: 'Active', lastLogin: '2026-09-04 16:20' },
-  { id: 5, name: 'Samuel Kato', email: 'samuel@roplantservices.com', password: '••••••••', role: 'Accountant', isOwner: false, status: 'Inactive', lastLogin: '2026-08-29 09:15' },
+  { id: 1, name: 'Ronald Mukasa', email: 'ronald@roplantservices.com', password: 'Roplant@026', role: 'Admin', isOwner: true, status: 'Active', lastLogin: '2026-09-05 08:12' },
+  { id: 2, name: 'Grace Nabirye', email: 'grace@roplantservices.com', password: 'Manager@026', role: 'Manager', isOwner: false, status: 'Active', lastLogin: '2026-09-05 07:40' },
+  { id: 3, name: 'David Mugisha', email: 'david@roplantservices.com', password: 'Sales@026', role: 'Sales', isOwner: false, status: 'Active', lastLogin: '2026-09-04 17:02' },
+  { id: 4, name: 'Patience Auma', email: 'patience@roplantservices.com', password: 'Inventory@026', role: 'Inventory', isOwner: false, status: 'Active', lastLogin: '2026-09-04 16:20' },
+  { id: 5, name: 'Samuel Kato', email: 'samuel@roplantservices.com', password: 'Accountant@026', role: 'Accountant', isOwner: false, status: 'Inactive', lastLogin: '2026-08-29 09:15' },
 ];
 
 const REVENUE_TREND = [
@@ -764,6 +740,9 @@ function LoginScreen({ t, onLogin }) {
           {error && <div className="text-xs px-3 py-2 rounded-md" style={{ background: t.dangerSoft, color: t.danger }}>{error}</div>}
           <Btn t={t} onClick={submit} variant="primary" disabled={loading}>{loading ? 'Signing in…' : 'Sign In'}</Btn>
         </div>
+        <p className="text-xs mt-4 text-center" style={{ color: t.textFaint }}>
+          Checks against the real backend — seeded owner login is ronald@roplantservices.com / Roplant@026 once the API and database are running (see backend/README.md).
+        </p>
       </div>
     </div>
   );
@@ -825,24 +804,6 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     api.getSettings().then((data) => setCompanyInfo(settingsFromApi(data.settings))).catch(() => {});
-  }, [currentUser]);
-
-  const [productsLoading, setProductsLoading] = useState(true);
-  const refetchProducts = () => {
-    setProductsLoading(true);
-    return api.listProducts({ pageSize: 200 })
-      .then((data) => setProducts(data.products.map(productFromApi)))
-      .catch((err) => notify(err.message, 'error'))
-      .finally(() => setProductsLoading(false));
-  };
-  useEffect(() => {
-    if (!currentUser) return;
-    refetchProducts();
-  }, [currentUser]);
-
-  useEffect(() => {
-    if (!currentUser) return;
-    api.listSales({ pageSize: 200 }).then((data) => setSales(data.sales.map(saleFromApi))).catch((err) => notify(err.message, 'error'));
   }, [currentUser]);
 
   useEffect(() => {
@@ -951,10 +912,10 @@ export default function App() {
         {/* CONTENT */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6" style={{ background: t.bg }}>
           {activeModule === 'dashboard' && <Dashboard {...ctx} products={products} sales={sales} customers={customers} suppliers={suppliers} />}
-          {activeModule === 'inventory' && <Inventory {...ctx} products={products} setProducts={setProducts} productsLoading={productsLoading} refetchProducts={refetchProducts} movements={movements} />}
+          {activeModule === 'inventory' && <Inventory {...ctx} products={products} setProducts={setProducts} movements={movements} />}
           {activeModule === 'icc' && <InventoryControlCenter {...ctx} products={products} setProducts={setProducts} movements={movements} sales={sales} purchaseOrders={purchaseOrders} suppliers={suppliers} customers={customers} returns={returns} />}
           {activeModule === 'stockmgmt' && <StockManagement {...ctx} products={products} setProducts={setProducts} movements={movements} />}
-          {activeModule === 'pos' && <POS {...ctx} products={products} setProducts={setProducts} refetchProducts={refetchProducts} customers={customers} setCustomers={setCustomers} sales={sales} setSales={setSales} />}
+          {activeModule === 'pos' && <POS {...ctx} products={products} setProducts={setProducts} customers={customers} setCustomers={setCustomers} sales={sales} setSales={setSales} />}
           {activeModule === 'documents' && <Documents {...ctx} sales={sales} customers={customers} products={products} quotations={quotations} setQuotations={setQuotations} />}
           {activeModule === 'whatsapp' && <WhatsAppModule {...ctx} customers={customers} sales={sales} />}
           {activeModule === 'purchasing' && <Purchasing {...ctx} suppliers={suppliers} setSuppliers={setSuppliers} products={products} setProducts={setProducts} purchaseOrders={purchaseOrders} setPurchaseOrders={setPurchaseOrders} />}
@@ -1132,30 +1093,26 @@ function Inventory({ t, products, setProducts, movements, companyInfo, notify, l
     (p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()) || p.partNumber.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const saveProduct = async (data, isNew) => {
+  const saveProduct = (data, isNew) => {
     if (!data.name || !data.category || !data.brand || data.sellPrice <= 0 || data.costPrice < 0 || data.stockQty < 0) {
       notify('Please complete all required fields with valid values.', 'error'); return;
     }
-    try {
-      if (isNew) {
-        const skuNum = String(products.length + 1).padStart(4, '0');
-        const prefix = data.category.slice(0, 3).toUpperCase();
-        const { product } = await api.createProduct({ ...data, sku: `${prefix}-${skuNum}` });
-        const mapped = productFromApi(product);
-        setProducts(prev => [...prev, mapped]);
-        logAudit({ action: `Created product ${mapped.name}`, module: 'Products & Inventory', before: '-', after: `Stock: ${mapped.stockQty}` });
-        notify(`Product "${mapped.name}" added with SKU ${mapped.sku}.`);
-      } else {
-        const { product } = await api.updateProduct(data.id, { ...data, expectedUpdatedAt: data.updatedAt });
-        const mapped = productFromApi(product);
-        setProducts(prev => prev.map(p => p.id === mapped.id ? mapped : p));
-        logAudit({ action: `Edited ${mapped.name}`, module: 'Products & Inventory', before: `Sell: ${companyInfo.currency} ${fmt(data.sellPrice)}`, after: `Sell: ${companyInfo.currency} ${fmt(mapped.sellPrice)}` });
-        notify(`Product "${mapped.name}" updated.`);
-      }
-      setModal(null);
-    } catch (err) {
-      notify(err.message, 'error');
+    if (isNew) {
+      const id = nextId();
+      const skuNum = String(products.length + 1).padStart(4, '0');
+      const prefix = data.category.slice(0, 3).toUpperCase();
+      const newProduct = { ...data, id, sku: `${prefix}-${skuNum}`, barcode: `89012345${String(id).padStart(5, '0')}` };
+      setProducts(prev => [...prev, newProduct]);
+      addMovement(id, 'Opening Stock', data.stockQty, 'OPEN-NEW');
+      logAudit({ action: `Created product ${newProduct.name}`, module: 'Products & Inventory', before: '-', after: `Stock: ${data.stockQty}` });
+      notify(`Product "${newProduct.name}" added with SKU ${newProduct.sku}.`);
+    } else {
+      const old = products.find(p => p.id === data.id);
+      setProducts(prev => prev.map(p => p.id === data.id ? { ...p, ...data } : p));
+      logAudit({ action: `Edited ${data.name}`, module: 'Products & Inventory', before: `Sell: ${companyInfo.currency} ${fmt(old.sellPrice)}`, after: `Sell: ${companyInfo.currency} ${fmt(data.sellPrice)}` });
+      notify(`Product "${data.name}" updated.`);
     }
+    setModal(null);
   };
 
   return (
@@ -1306,7 +1263,7 @@ function ProductModal({ t, initial, onClose, onSave, isNew }) {
 }
 
 /* ============================== POS ============================== */
-function POS({ t, products, setProducts, refetchProducts, customers, setCustomers, sales, setSales, companyInfo, notify, logAudit, addMovement, role }) {
+function POS({ t, products, setProducts, customers, setCustomers, sales, setSales, companyInfo, notify, logAudit, addMovement, role }) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [cart, setCart] = useState([]);
@@ -1343,39 +1300,25 @@ function POS({ t, products, setProducts, refetchProducts, customers, setCustomer
   const tax = taxable * (companyInfo.taxRate / 100);
   const total = taxable + tax;
 
-  const [checkingOut, setCheckingOut] = useState(false);
-  const completeSale = async () => {
+  const completeSale = () => {
     if (cart.length === 0) { notify('Cart is empty.', 'error'); return; }
     const customer = customers.find(c => c.id === customerId);
-    setCheckingOut(true);
-    try {
-      const { sale } = await api.createSale({
-        customerId,
-        items: cart.map(i => ({ productId: i.productId, qty: i.qty })),
-        discountPct: discount,
-        paymentMethod: payment,
-      });
-      // The backend is authoritative for prices/totals — it recomputes everything from the
-      // real DB rather than trusting whatever the cart said, so the receipt uses its numbers,
-      // not the locally-estimated ones the cart was showing a moment ago.
-      const receiptData = {
-        id: sale.id, invoiceNo: sale.invoice_no, date: (sale.created_at || '').slice(0, 10) || todayStr(),
-        customerId, customerName: sale.customerName || customer.name,
-        items: cart.map(i => ({ productId: i.productId, sku: i.sku, name: i.name, price: i.price, qty: i.qty })),
-        subtotal: Number(sale.subtotal), discount: Number(sale.discount), tax: Number(sale.tax), total: Number(sale.total),
-        paymentMethod: sale.payment_method, status: sale.status, servedBy: sale.servedBy,
-      };
-      setSales(prev => [receiptData, ...prev]);
-      await refetchProducts(); // stock was deducted server-side; reload real quantities rather than guessing locally
-      logAudit({ action: `Completed sale ${sale.invoice_no}`, module: 'POS', before: '-', after: money(Number(sale.total), companyInfo.currency) });
-      notify(`Sale ${sale.invoice_no} completed successfully.`);
-      setReceipt(receiptData);
-      setCart([]); setDiscount(0); setPayment('Cash');
-    } catch (err) {
-      notify(err.message, 'error');
-    } finally {
-      setCheckingOut(false);
+    if (payment === 'Credit' && customer.creditLimit > 0 && customer.balance + total > customer.creditLimit) {
+      notify(`This sale would exceed ${customer.name}'s credit limit.`, 'error'); return;
     }
+    const invoiceNo = `${companyInfo.invoicePrefix}-${String(sales.length + 1).padStart(4, '0')}`;
+    const sale = { id: nextId(), invoiceNo, date: todayStr(), customerId, customerName: customer.name, items: cart, subtotal, discount: discountAmt, tax, total, paymentMethod: payment, status: payment === 'Credit' ? 'Credit' : 'Paid', servedBy: role };
+    setSales(prev => [sale, ...prev]);
+    setProducts(prev => prev.map(p => {
+      const item = cart.find(i => i.productId === p.id);
+      return item ? { ...p, stockQty: p.stockQty - item.qty } : p;
+    }));
+    cart.forEach(i => addMovement(i.productId, 'Sale', -i.qty, invoiceNo));
+    if (payment === 'Credit') setCustomers(prev => prev.map(c => c.id === customerId ? { ...c, balance: c.balance + total } : c));
+    logAudit({ action: `Completed sale ${invoiceNo}`, module: 'POS', before: '-', after: money(total, companyInfo.currency) });
+    notify(`Sale ${invoiceNo} completed successfully.`);
+    setReceipt(sale);
+    setCart([]); setDiscount(0); setPayment('Cash');
   };
 
   return (
@@ -1448,7 +1391,7 @@ function POS({ t, products, setProducts, refetchProducts, customers, setCustomer
             <div className="flex justify-between"><span style={{ color: t.textMuted }}>Tax ({companyInfo.taxRate}%)</span><span>{fmt(tax)}</span></div>
             <div className="flex justify-between font-semibold text-base pt-1"><span>Total</span><span>{fmt(total)} {companyInfo.currency}</span></div>
           </div>
-          <Btn t={t} variant="primary" onClick={completeSale} disabled={checkingOut}>{checkingOut ? 'Processing…' : 'Complete Sale'}</Btn>
+          <Btn t={t} variant="primary" onClick={completeSale}>Complete Sale</Btn>
         </Card>
       </div>
 
@@ -3098,22 +3041,16 @@ function StockManagement({ t, products, setProducts, movements, addMovement, com
   // Reuses the same edit + audit-log mechanism as the Products & Inventory page — the
   // closest existing "logged correction" flow in the app for a price change. Closing stock
   // is never part of this form; it's computed above and only ever rendered as text.
-  const savePriceEdit = async (form) => {
-    try {
-      const { product } = await api.updateProduct(form.id, { ...form, expectedUpdatedAt: form.updatedAt });
-      const mapped = productFromApi(product);
-      const old = products.find(p => p.id === form.id);
-      setProducts(prev => prev.map(p => p.id === mapped.id ? mapped : p));
-      logAudit({
-        action: `Edited ${mapped.name} pricing via Stock Management`, module: 'Stock Management',
-        before: `Cost: ${fmt(old.costPrice)} / Sell: ${fmt(old.sellPrice)}`,
-        after: `Cost: ${fmt(mapped.costPrice)} / Sell: ${fmt(mapped.sellPrice)}`,
-      });
-      notify(`${mapped.name} pricing updated.`);
-      setEditingProduct(null);
-    } catch (err) {
-      notify(err.message, 'error');
-    }
+  const savePriceEdit = (form) => {
+    const old = products.find(p => p.id === form.id);
+    setProducts(prev => prev.map(p => p.id === form.id ? { ...p, ...form } : p));
+    logAudit({
+      action: `Edited ${form.name} pricing via Stock Management`, module: 'Stock Management',
+      before: `Cost: ${fmt(old.costPrice)} / Sell: ${fmt(old.sellPrice)}`,
+      after: `Cost: ${fmt(form.costPrice)} / Sell: ${fmt(form.sellPrice)}`,
+    });
+    notify(`${form.name} pricing updated.`);
+    setEditingProduct(null);
   };
 
   const exportCSV = () => downloadCSV('stock-management.csv', [
